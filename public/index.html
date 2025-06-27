@@ -44,6 +44,29 @@
             opacity: 0.9;
         }
         
+        .quick-actions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            text-align: center;
+        }
+        
+        .quick-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            margin: 0 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        
+        .quick-btn:hover {
+            transform: translateY(-2px);
+        }
+        
         .controls {
             padding: 30px;
             background: #f8f9fa;
@@ -55,11 +78,13 @@
             gap: 20px;
             align-items: center;
             flex-wrap: wrap;
+            margin-bottom: 15px;
         }
         
         .control-group label {
             font-weight: bold;
             color: #495057;
+            min-width: 120px;
         }
         
         .control-group input, .control-group select {
@@ -67,6 +92,7 @@
             border: 2px solid #dee2e6;
             border-radius: 5px;
             font-size: 16px;
+            min-width: 150px;
         }
         
         .btn {
@@ -106,7 +132,7 @@
         
         .vehicle-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }
@@ -117,13 +143,37 @@
             color: #1e3c72;
         }
         
+        .badges {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
         .probability-badge {
             background: linear-gradient(45deg, #28a745, #20c997);
             color: white;
             padding: 5px 15px;
             border-radius: 20px;
             font-weight: bold;
-            margin-left: auto;
+            font-size: 0.9em;
+        }
+        
+        .confidence-badge {
+            background: linear-gradient(45deg, #6f42c1, #5a2d91);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+        
+        .urgency-badge {
+            background: linear-gradient(45deg, #fd7e14, #e8590c);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8em;
         }
         
         .vehicle-details {
@@ -155,16 +205,44 @@
             margin: 20px 0;
         }
         
-        .market-trends {
+        .market-insights {
             background: #e7f3ff;
             padding: 20px;
             border-radius: 10px;
             margin-top: 20px;
         }
         
-        .trend-item {
-            padding: 5px 0;
+        .insight-item {
+            padding: 8px 0;
             color: #004085;
+            border-left: 3px solid #0066cc;
+            padding-left: 15px;
+            margin: 10px 0;
+        }
+        
+        .stats-bar {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        
+        .stat-item {
+            flex: 1;
+        }
+        
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
         }
     </style>
 </head>
@@ -173,6 +251,13 @@
         <div class="header">
             <h1>🚗 AI Inventory Advisor</h1>
             <p>Get AI-powered recommendations for vehicles most likely to sell quickly</p>
+        </div>
+        
+        <div class="quick-actions">
+            <h3>🚀 Quick Actions</h3>
+            <button class="quick-btn" onclick="getQuickPicks(7)">Vehicles for Next 7 Days</button>
+            <button class="quick-btn" onclick="getQuickPicks(14)">Vehicles for Next 2 Weeks</button>
+            <button class="quick-btn" onclick="getQuickPicks(30)">Vehicles for Next Month</button>
         </div>
         
         <div class="controls">
@@ -189,9 +274,14 @@
                     <option value="electric">Electric</option>
                     <option value="luxury">Luxury</option>
                 </select>
-                
+            </div>
+            
+            <div class="control-group">
                 <label for="maxAge">Max age (years):</label>
                 <input type="number" id="maxAge" value="3" min="1" max="10">
+                
+                <label for="maxDaysToSell">Max days to sell:</label>
+                <input type="number" id="maxDaysToSell" value="" placeholder="Any" min="1" max="180">
                 
                 <button class="btn" onclick="getRecommendations()">Get Recommendations</button>
             </div>
@@ -199,7 +289,7 @@
         
         <div class="results" id="results">
             <div class="loading">
-                Click "Get Recommendations" to see AI-powered vehicle suggestions
+                Click "Get Recommendations" or try a Quick Action to see AI-powered vehicle suggestions
             </div>
         </div>
     </div>
@@ -213,10 +303,12 @@
                 const count = document.getElementById('vehicleCount').value;
                 const type = document.getElementById('vehicleType').value;
                 const maxAge = document.getElementById('maxAge').value;
+                const maxDaysToSell = document.getElementById('maxDaysToSell').value;
                 
                 const filters = {};
                 if (type) filters.type = type;
                 if (maxAge) filters.maxAge = parseInt(maxAge);
+                if (maxDaysToSell) filters.maxDaysToSell = parseInt(maxDaysToSell);
                 
                 const response = await fetch('/api/recommendations', {
                     method: 'POST',
@@ -238,18 +330,133 @@
             }
         }
         
+        async function getQuickPicks(days) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="loading">🎯 Finding vehicles likely to sell within ${days} days...</div>`;
+            
+            try {
+                const response = await fetch(`/api/quick-picks/${days}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayQuickPicks(data);
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function getUrgencyBadge(days) {
+            if (days <= 7) return '<span class="urgency-badge">🔥 URGENT</span>';
+            if (days <= 14) return '<span class="urgency-badge">⚡ FAST</span>';
+            if (days <= 30) return '<span class="urgency-badge">📈 GOOD</span>';
+            return '';
+        }
+        
+        function displayQuickPicks(data) {
+            const resultsDiv = document.getElementById('results');
+            
+            let html = `
+                <h2>🎯 Vehicles Likely to Sell Within ${data.target_days} Days</h2>
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <div class="stat-number">${data.found_count}</div>
+                        <div class="stat-label">Quick Sellers Found</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.target_days}</div>
+                        <div class="stat-label">Day Target</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.found_count > 0 ? Math.round(data.recommendations.reduce((sum, v) => sum + v.sell_probability, 0) / data.recommendations.length) : 0}%</div>
+                        <div class="stat-label">Avg Probability</div>
+                    </div>
+                </div>
+            `;
+            
+            if (data.recommendations.length === 0) {
+                html += '<div class="error">No vehicles found that meet the criteria. Try expanding the timeframe.</div>';
+            } else {
+                data.recommendations.forEach((vehicle, index) => {
+                    html += `
+                        <div class="vehicle-card">
+                            <div class="vehicle-header">
+                                <div class="vehicle-title">
+                                    #${index + 1} - ${vehicle.year} ${vehicle.make} ${vehicle.model}
+                                </div>
+                                <div class="badges">
+                                    ${getUrgencyBadge(vehicle.days_to_sell_estimate)}
+                                    <div class="probability-badge">
+                                        ${vehicle.sell_probability.toFixed(1)}% likely
+                                    </div>
+                                    <div class="confidence-badge">
+                                        ${vehicle.confidence_score}% confidence
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="vehicle-details">
+                                <div class="detail-item">
+                                    <span>Type:</span>
+                                    <span>${vehicle.type.replace('_', ' ').toUpperCase()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span>Est. Days to Sell:</span>
+                                    <span><strong>${vehicle.days_to_sell_estimate} days</strong></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span>Historical Avg:</span>
+                                    <span>${vehicle.avg_days_on_lot} days</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span>Seasonal Factor:</span>
+                                    <span>${(vehicle.seasonal_boost * 100 - 100).toFixed(0)}% boost</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+        
         function displayResults(data) {
             const resultsDiv = document.getElementById('results');
             
             let html = `
                 <h2>🎯 Top ${data.recommendations.length} Vehicles Most Likely to Sell</h2>
-                <div class="market-trends">
-                    <h3>📊 Market Analysis</h3>
-                    <div class="trend-item">✅ ${data.analysis.market_conditions}</div>
-                    <div class="trend-item">📈 Analyzed ${data.analysis.total_vehicles_analyzed} vehicles</div>
-                    <div class="trend-item">🕒 Generated at ${new Date(data.analysis.generated_at).toLocaleString()}</div>
+                
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <div class="stat-number">${data.analysis.total_vehicles_analyzed}</div>
+                        <div class="stat-label">Vehicles Analyzed</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.recommendations.length > 0 ? Math.round(data.recommendations.reduce((sum, v) => sum + v.sell_probability, 0) / data.recommendations.length) : 0}%</div>
+                        <div class="stat-label">Avg Sell Probability</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${data.recommendations.length > 0 ? Math.round(data.recommendations.reduce((sum, v) => sum + v.days_to_sell_estimate, 0) / data.recommendations.length) : 0}</div>
+                        <div class="stat-label">Avg Days to Sell</div>
+                    </div>
                 </div>
             `;
+            
+            if (data.analysis.market_insights && data.analysis.market_insights.length > 0) {
+                html += `
+                    <div class="market-insights">
+                        <h3>📊 Market Insights</h3>
+                `;
+                data.analysis.market_insights.forEach(insight => {
+                    html += `<div class="insight-item">💡 ${insight}</div>`;
+                });
+                html += `
+                        <div class="insight-item">🕒 Analysis generated at ${new Date(data.analysis.generated_at).toLocaleString()}</div>
+                    </div>
+                `;
+            }
             
             data.recommendations.forEach((vehicle, index) => {
                 html += `
@@ -258,8 +465,14 @@
                             <div class="vehicle-title">
                                 #${index + 1} - ${vehicle.year} ${vehicle.make} ${vehicle.model}
                             </div>
-                            <div class="probability-badge">
-                                ${vehicle.sell_probability.toFixed(1)}% likely to sell
+                            <div class="badges">
+                                ${getUrgencyBadge(vehicle.days_to_sell_estimate)}
+                                <div class="probability-badge">
+                                    ${vehicle.sell_probability.toFixed(1)}% likely
+                                </div>
+                                <div class="confidence-badge">
+                                    ${vehicle.confidence_score}% confidence
+                                </div>
                             </div>
                         </div>
                         <div class="vehicle-details">
@@ -272,12 +485,20 @@
                                 <span>${vehicle.demand_score}/100</span>
                             </div>
                             <div class="detail-item">
+                                <span>Est. Days to Sell:</span>
+                                <span><strong>${vehicle.days_to_sell_estimate} days</strong></span>
+                            </div>
+                            <div class="detail-item">
+                                <span>Historical Avg:</span>
+                                <span>${vehicle.avg_days_on_lot} days</span>
+                            </div>
+                            <div class="detail-item">
                                 <span>Seasonal Factor:</span>
                                 <span>${(vehicle.seasonal_boost * 100 - 100).toFixed(0)}% boost</span>
                             </div>
                             <div class="detail-item">
-                                <span>Est. Days to Sell:</span>
-                                <span>${vehicle.days_to_sell_estimate} days</span>
+                                <span>AI Confidence:</span>
+                                <span>${vehicle.confidence_score}%</span>
                             </div>
                         </div>
                     </div>
